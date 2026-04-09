@@ -22,9 +22,10 @@ public:
             &RobotGUI::odomCallback, this);
 
         distance_client_ = nh_.serviceClient<std_srvs::Trigger>("/get_distance");
+        reset_client_ = nh_.serviceClient<std_srvs::Trigger>("/reset_distance");
         distance_client_.waitForExistence();
 
-        // Initialize values
+        // Initialize thvalues
         linear_x_ = 0.0;
         angular_z_ = 0.0;
         pos_x_ = pos_y_ = pos_z_ = 0.0;
@@ -36,7 +37,7 @@ public:
     }
 
     void spin() {
-        cv::Mat frame = cv::Mat(600, 800, CV_8UC3);
+        cv::Mat frame = cv::Mat(850, 600, CV_8UC3);
 
         while (ros::ok()) {
             frame = cv::Scalar(49, 52, 49);
@@ -61,6 +62,7 @@ private:
     ros::Subscriber robot_info_sub_;
     ros::Subscriber odom_sub_;
     ros::ServiceClient distance_client_;
+    ros::ServiceClient reset_client_;
 
     geometry_msgs::Twist cmd_msg_;
 
@@ -70,57 +72,100 @@ private:
     std::string robot_info_text_;
     std::string distance_text_;
 
-    // -------- CALLLLLBACKS --------
+    // CALLLLLBACKS --------
     void robotInfoCallback(const robotinfo_msgs::RobotInfo10Fields::ConstPtr& msg) {
-        robot_info_text_ = msg->data_field_01;
+    robot_info_text_ =
+        msg->data_field_01 + "\n" +
+        msg->data_field_02 + "\n" +
+        msg->data_field_03 + "\n" +
+        msg->data_field_04 + "\n" +
+        msg->data_field_05 + "\n" +
+        msg->data_field_06 + "\n" +
+        msg->data_field_07 + "\n" +
+        msg->data_field_08 + "\n" +
+        msg->data_field_09 + "\n" +
+        msg->data_field_10;
     }
 
     void odomCallback(const nav_msgs::Odometry::ConstPtr& msg) {
-        pos_x_ = msg->pose.pose.position.x;
-        pos_y_ = msg->pose.pose.position.y;
-        pos_z_ = msg->pose.pose.position.z;
+            pos_x_ = msg->pose.pose.position.x;
+            pos_y_ = msg->pose.pose.position.y;
+            pos_z_ = msg->pose.pose.position.z;
     }
 
-    // -------- GUI --------
+        // -------- GUI --------
     void drawGUI(cv::Mat& frame) {
 
-        // INFO
-        cvui::text(frame, 20, 20, "Robot Info:");
-        cvui::text(frame, 20, 50, robot_info_text_);
+        //----INFO PANELLL============
+        cvui::window(frame, 10, 10, 580, 200, "Info");
 
-        // TELEOPOPERATIONS
-        cvui::text(frame, 20, 100, "Teleoperation");
+        int y = 40;
+        std::stringstream ss(robot_info_text_);
+        std::string line;
 
-        if (cvui::button(frame, 20, 130, "Forward")) linear_x_ += 0.1;
-        if (cvui::button(frame, 120, 130, "Backward")) linear_x_ -= 0.1;
-        if (cvui::button(frame, 20, 180, "Left")) angular_z_ += 0.1;
-        if (cvui::button(frame, 120, 180, "Right")) angular_z_ -= 0.1;
+        while (std::getline(ss, line)) {
+            cvui::text(frame, 30, y, line);
+            y += 18;
+        }
 
-        if (cvui::button(frame, 70, 230, "STOP")) {
+        // TELEOPERA PANEL =====================
+        cvui::window(frame, 10, 220, 580, 250, "Teleoperation");
+
+        // Forward(Mbele)
+        if (cvui::button(frame, 250, 260, 100, 50, "Forward"))
+            linear_x_ += 0.1;
+
+        // Middle (Katikati) row
+        if (cvui::button(frame, 150, 320, 100, 50, "Left"))
+            angular_z_ += 0.1;
+
+        if (cvui::button(frame, 250, 320, 100, 50, "Stop")) {
             linear_x_ = 0.0;
             angular_z_ = 0.0;
         }
 
-        // VELOCITY DISPLAY
-        cvui::text(frame, 20, 280, "Linear Velocity: " + std::to_string(linear_x_));
-        cvui::text(frame, 20, 310, "Angular Velocity: " + std::to_string(angular_z_));
+        if (cvui::button(frame, 350, 320, 100, 50, "Right"))
+            angular_z_ -= 0.1;
 
-        // ODOMETRY
-        cvui::text(frame, 20, 360, "Position:");
-        cvui::text(frame, 20, 390, "X: " + std::to_string(pos_x_));
-        cvui::text(frame, 20, 420, "Y: " + std::to_string(pos_y_));
-        cvui::text(frame, 20, 450, "Z: " + std::to_string(pos_z_));
+        // Backward(Nyuma)
+        if (cvui::button(frame, 250, 380, 100, 50, "Backward"))
+            linear_x_ -= 0.1;
 
-        // SERVICE
-        if (cvui::button(frame, 20, 500, "Get Distance")) {
+        // ===================== VELOCITY ===========
+        cvui::text(frame, 20, 490, "Linear velocity:");
+        cvui::printf(frame, 20, 520, 0.7, 0xff0000, "%.2f m/sec", linear_x_);
+
+        cvui::text(frame, 320, 490, "Angular velocity:");
+        cvui::printf(frame, 320, 520, 0.7, 0xff0000, "%.2f rad/sec", angular_z_);
+
+        // === ODOMETRY PANEL =====================
+        cvui::text(frame, 20, 550, "Estimated robot position based off odometry");
+
+        // X
+        cvui::window(frame, 10, 580, 180, 120, "X");
+        cvui::printf(frame, 50, 640, 1.0, 0xffffff, "%.0f", pos_x_);
+
+        // Y
+        cvui::window(frame, 210, 580, 180, 120, "Y");
+        cvui::printf(frame, 250, 640, 1.0, 0xffffff, "%.0f", pos_y_);
+
+        // Z
+        cvui::window(frame, 410, 580, 180, 120, "Z");
+        cvui::printf(frame, 450, 640, 1.0, 0xffffff, "%.0f", pos_z_);
+
+        // ==------------------------------------------- DISTANCE SECTION =========
+        cvui::window(frame, 10, 710, 280, 120, "Distance Travelled");
+
+        if (cvui::button(frame, 30, 750, 100, 50, "Call")) {
             std_srvs::Trigger srv;
             if (distance_client_.call(srv)) {
                 distance_text_ = srv.response.message;
             }
         }
 
-        cvui::text(frame, 20, 540, "Distance: " + distance_text_);
-    }
+        cvui::window(frame, 310, 710, 280, 120, "Distance in meters");
+        cvui::printf(frame, 400, 770, 1.0, 0xffffff, "%s", distance_text_.c_str());
+    }  
 
     // -------- PUBLISH --------
     void publishVelocity() {
